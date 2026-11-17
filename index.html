@@ -8,56 +8,63 @@
 </head>
 <body>
 <main>
-  <header>
-    <h1>Laboratorio de capa física</h1>
-    <p class="sub">Caso: oficina con dos routers (Personal y Claro) donde la impresora se corta. Redes · UCEL · Capítulo 8</p>
-  </header>
-
-  <div class="tabs">
-    <button class="on" data-t="sim">Simulador</button>
-    <button data-t="dia">Diagnóstico</button>
+  <div class="top">
+    <header>
+      <h1>Laboratorio de capa física</h1>
+      <p class="sub">Caso: oficina con dos routers (Personal y Claro) donde la impresora se corta. Redes · UCEL · Capítulo 8</p>
+    </header>
+    <div class="tabs">
+      <button class="on" data-t="sim">Simulador</button>
+      <button data-t="dia">Diagnóstico</button>
+    </div>
   </div>
 
   <section id="sim">
-    <div class="card">
-      <canvas id="cv" width="600" height="350"></canvas>
-      <div class="legend">
-        <span><i class="dot" style="background:#3cc9bf"></i> Muy buena (SNR ≥ 25 dB)</span>
-        <span><i class="dot" style="background:#9bd45a"></i> Buena (16–25 dB)</span>
-        <span><i class="dot" style="background:#f0c04a"></i> Marginal (6–16 dB)</span>
-        <span><i class="dot" style="background:#e8833a"></i> Mala (0–6 dB)</span>
-        <span><i class="dot" style="background:#c0392b"></i> Sin enlace (&lt; 0 dB)</span>
+    <div class="col">
+      <div class="card cvcard">
+        <div id="cvw"><canvas id="cv" width="600" height="350"></canvas></div>
+        <div class="legend">
+          <span><i class="dot" style="background:#3cc9bf"></i> Muy buena (SNR ≥ 25 dB)</span>
+          <span><i class="dot" style="background:#9bd45a"></i> Buena (16–25 dB)</span>
+          <span><i class="dot" style="background:#f0c04a"></i> Marginal (6–16 dB)</span>
+          <span><i class="dot" style="background:#e8833a"></i> Mala (0–6 dB)</span>
+          <span><i class="dot" style="background:#c0392b"></i> Sin enlace (&lt; 0 dB)</span>
+        </div>
+        <p class="note">Arrastrá o tocá la impresora para moverla. El mapa de calor muestra la SNR en tiempo real; el halo violeta es la interferencia del microondas (2,4 GHz). Simulación didáctica con un modelo simplificado (no son mediciones reales).</p>
       </div>
-      <p class="note">Arrastrá o tocá la impresora para moverla. El mapa de calor muestra la SNR en tiempo real. El halo violeta es la interferencia del microondas (2,4 GHz).</p>
     </div>
 
-    <div class="card">
-      <div class="grid">
-        <div class="ctl"><label>Impresora conectada a</label><select id="rt"><option value="0">Router Personal</option><option value="1">Router Claro</option></select></div>
-        <div class="ctl"><label>Router emite en</label><select id="bd"><option value="2.4">2,4 GHz (b/g/n)</option><option value="5">5 GHz (a/n)</option></select></div>
-        <div class="ctl"><label>La impresora soporta</label><select id="ps"><option value="2.4">Solo 2,4 GHz</option><option value="both">2,4 y 5 GHz</option></select></div>
+    <div class="col">
+      <div class="card">
+        <div class="grid">
+          <div class="ctl"><label>Impresora conectada a</label><select id="rt"><option value="0">Router Personal</option><option value="1">Router Claro</option></select></div>
+          <div class="ctl"><label>Router emite en</label><select id="bd"><option value="2.4">2,4 GHz (b/g/n)</option><option value="5">5 GHz (a/n)</option></select></div>
+          <div class="ctl"><label>La impresora soporta</label><select id="ps"><option value="2.4">Solo 2,4 GHz</option><option value="both">2,4 y 5 GHz</option></select></div>
+        </div>
+        <label class="sw"><input type="checkbox" id="mw" checked> Microondas encendido</label>
+        <label class="sw"><input type="checkbox" id="w2" checked> Ambos routers en la misma banda y canal</label>
+        <label class="sw"><input type="checkbox" id="cb"> Impresora por cable UTP (Ethernet 100 Mbps)</label>
+        <div class="ctl">
+          <label>Personas con notebook usando el Wi-Fi: <b id="uv">18</b></label>
+          <input type="range" id="us" min="0" max="20" value="18">
+        </div>
       </div>
-      <label class="sw"><input type="checkbox" id="mw" checked> Microondas encendido</label>
-      <label class="sw"><input type="checkbox" id="w2" checked> Ambos routers en la misma banda y canal</label>
-      <div class="ctl" style="margin:10px 0">
-        <label>Personas con notebook usando el Wi-Fi: <b id="uv">18</b></label>
-        <input type="range" id="us" min="0" max="20" value="18">
-      </div>
-      <label class="sw"><input type="checkbox" id="cb"> Impresora por cable UTP (Ethernet 100 Mbps)</label>
+      <div class="card" id="out"></div>
     </div>
-    <div class="card" id="out"></div>
   </section>
 
   <section id="dia" class="hide">
-    <div class="card" id="sym"></div>
-    <div class="card">
-      <b>Causas probables</b>
-      <div id="dout"></div>
-      <p class="note">Ordena hipótesis del Capítulo 8; no reemplaza medir con tester de cable o analizador de Wi-Fi.</p>
+    <div class="col">
+      <div class="card" id="sym"></div>
+    </div>
+    <div class="col">
+      <div class="card">
+        <b>Causas probables</b>
+        <div id="dout"></div>
+        <p class="note">Ordena hipótesis del Capítulo 8; no reemplaza medir con tester de cable o analizador de Wi-Fi.</p>
+      </div>
     </div>
   </section>
-
-  <p class="note" style="text-align:center">Simulación didáctica con un modelo simplificado de propagación (no son mediciones reales).</p>
 </main>
 <script src="js/app.js"></script>
 </body>
