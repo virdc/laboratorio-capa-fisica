@@ -29,34 +29,45 @@ function rate(snr) { return snr<6?0 : snr<12?6 : snr<16?12 : snr<20?24 : snr<25?
 
 function evalS(px,py,s) {
   if (s.cb) return { st:"ok", msg:"Imprime bien", bw:100, thr:60, use:40, rssi:null, snr:null, why:"El cobre UTP (8.3.3) no depende del aire: sin interferencia de microondas ni paredes." };
-  if (s.band==2.4 ? false : s.ps=="2.4") return { st:"bad", msg:"No se conecta", bw:0, thr:0, use:0, rssi:null, snr:null, why:"Estándares incompatibles: la impresora es 2,4 GHz (b/g) y el router emite en 5 GHz (a). No interoperan (8.3.7)." };
-  
+  if (s.band==5 && s.ps=="2.4") return { st:"bad", msg:"No se conecta", bw:0, thr:0, use:0, rssi:null, snr:null, why:"Estándares incompatibles: la impresora es 2,4 GHz (b/g) y el router emite en 5 GHz (a). No interoperan (8.3.7)." };
+
   const q = snrAt(px,py,s);
   const bw = rate(q.snr);
   const air = 1/(1+0.3*(s.w2 ? s.u : s.u/2));
   const thr = bw * 0.6 * air;
   const use = thr * 0.67;
   let st, msg, why;
-  
+
   if (q.snr < 6) { st="bad"; msg="No se conecta"; why="Relación señal/ruido insuficiente."; }
   else if (q.snr < 16) { st="bad"; msg="Se corta"; why="SNR baja: el enlace se cae al transferir."; }
   else if (use < 4) { st="mid"; msg="Imprime lento"; why="Hay enlace pero la capacidad útil es baja."; }
   else { st="ok"; msg="Imprime bien"; why="Señal suficiente."; }
-  
+
   if (q.snr<16 && s.mw && s.band==2.4) why="El microondas eleva el ruido en 2,4 GHz y la SNR cae (8.3.7).";
   else if (q.snr<16 && s.band==5) why="En 5 GHz las paredes atenúan más y el alcance es menor (8.3.7).";
   else if (q.snr<16) why="Distancia y paredes debilitan la señal (8.3.7).";
   if (st=="mid") why = Math.round(s.w2 ? s.u : s.u/2) + " notebooks comparten el aire (CSMA/CA): al imprimir queda poco tiempo de aire y el rendimiento cae (8.2.3).";
-  
+
   return { st, msg, bw, thr, use, air, rssi:q.rssi, snr:q.snr, why };
 }
 
-// ==================== DIBUJO OPTIMIZADO ====================
+// ==================== TEMA (modo claro / oscuro) ====================
+let ink = "#14202e", paper = "#f7f9fb";
+function readTheme() {
+  const cs = getComputedStyle(document.documentElement);
+  ink = cs.getPropertyValue("--tx").trim() || ink;
+  paper = cs.getPropertyValue("--cv").trim() || paper;
+}
+readTheme();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readTheme(); draw(); });
+
+// ==================== DIBUJO ====================
 const P = {x:7, y:5.5};
 const S = {rt:0, band:2.4, ps:"2.4", mw:true, w2:true, cb:false, u:18};
 const cv = document.getElementById("cv");
 const g = cv.getContext("2d");
 const K = 50; // Escala de coordenadas
+let dr = false; // arrastrando
 
 function colorForSNR(snr) {
   if (snr >= 25) return [60, 201, 191];  // Teal
@@ -70,18 +81,18 @@ function drawHeatmap() {
   const wd = cv.width, ht = cv.height;
   const imgData = g.createImageData(wd, ht);
   const data = imgData.data;
-  const step = 4; // Resolución del mapa
+  const step = dr ? 6 : 4; // más liviano mientras se arrastra
 
   for (let y = 0; y < ht; y += step) {
     for (let x = 0; x < wd; x += step) {
       const q = snrAt((x + step/2)/K, (y + step/2)/K, S);
       const c = colorForSNR(q.snr);
-      
+
       for (let dy = 0; dy < step; dy++) {
         for (let dx = 0; dx < step; dx++) {
           if (x+dx >= wd || y+dy >= ht) continue;
           const idx = ((y+dy) * wd + (x+dx)) * 4;
-          data[idx] = c[0]; data[idx+1] = c[1]; data[idx+2] = c[2]; data[idx+3] = 140; // Alpha 55%
+          data[idx] = c[0]; data[idx+1] = c[1]; data[idx+2] = c[2]; data[idx+3] = 140;
         }
       }
     }
@@ -91,10 +102,10 @@ function drawHeatmap() {
 
 function draw() {
   g.clearRect(0, 0, cv.width, cv.height);
-  
+
   // 1. Mapa de calor (si no está por cable)
   if (!S.cb) drawHeatmap();
-  
+
   // 2. Halo Microondas
   if (S.mw && S.band==2.4 && !S.cb) {
     const mg = g.createRadialGradient(MW[0]*K, MW[1]*K, 0, MW[0]*K, MW[1]*K, 90);
@@ -103,31 +114,32 @@ function draw() {
     g.fillStyle = mg;
     g.beginPath(); g.arc(MW[0]*K, MW[1]*K, 90, 0, 7); g.fill();
   }
-  
+
   // 3. Paredes
   g.lineWidth = 6;
-  g.strokeStyle = "rgba(60,70,80,0.9)";
+  g.strokeStyle = ink;
   g.lineCap = "round";
   W.forEach((w, i) => {
-    g.globalAlpha = i==2 ? 0.6 : 1;
+    g.globalAlpha = i==2 ? 0.4 : 0.7;
     g.beginPath(); g.moveTo(w[0]*K, w[1]*K); g.lineTo(w[2]*K, w[3]*K); g.stroke();
   });
   g.globalAlpha = 1;
-  
+
   // 4. Routers
   g.font = "bold 13px system-ui";
   g.textAlign = "center";
   RT.forEach((r, i) => {
     const on = (i == S.rt);
-    g.fillStyle = i ? "#14202e" : "#0b7a75";
+    g.fillStyle = i ? ink : "#0b7a75";
     g.beginPath(); g.arc(r[0]*K, r[1]*K, 14, 0, 7); g.fill();
-    g.fillStyle = "#fff"; g.fillText("R", r[0]*K, r[1]*K+5);
-    
-    g.fillStyle = "#14202e";
+    g.fillStyle = i ? paper : "#fff";
+    g.fillText("R", r[0]*K, r[1]*K+5);
+
+    g.fillStyle = ink;
     g.fillText(i ? "Claro" : "Personal", r[0]*K, r[1]*K + (r[1]<3 ? 32 : -22));
-    
+
     if (S.w2 || on) {
-      g.strokeStyle = i ? "#14202e" : "#0b7a75";
+      g.strokeStyle = i ? ink : "#0b7a75";
       g.lineWidth = 2;
       g.globalAlpha = .6;
       [20, 32].forEach(rr => {
@@ -136,14 +148,14 @@ function draw() {
       g.globalAlpha = 1;
     }
   });
-  
+
   // 5. Microondas
   if (S.mw) {
     g.fillStyle = "#8a97a5"; g.fillRect(MW[0]*K-14, MW[1]*K-10, 28, 20);
     g.fillStyle = "#fff"; g.font = "bold 12px system-ui"; g.fillText("μ", MW[0]*K, MW[1]*K+5);
-    g.fillStyle = "#14202e"; g.fillText("microondas", MW[0]*K, MW[1]*K+28);
+    g.fillStyle = ink; g.fillText("microondas", MW[0]*K, MW[1]*K+28);
   }
-  
+
   // 6. Enlace Impresora-Router
   const r = RT[S.rt];
   g.setLineDash([6,6]);
@@ -152,26 +164,49 @@ function draw() {
   if (S.cb) g.setLineDash([]);
   g.beginPath(); g.moveTo(r[0]*K, r[1]*K); g.lineTo(P.x*K, P.y*K); g.stroke();
   g.setLineDash([]);
-  
+
   // 7. Impresora
   g.fillStyle = "#e8833a";
   g.fillRect(P.x*K-16, P.y*K-11, 32, 22);
   g.fillStyle = "#fff"; g.font = "14px system-ui"; g.fillText("🖨", P.x*K, P.y*K+6);
+
+  // 8. Aviso de incompatibilidad 5 GHz / impresora 2,4 GHz
+  if (!S.cb && S.band==5 && S.ps=="2.4") {
+    g.fillStyle = "rgba(192,57,43,0.92)";
+    g.fillRect(0, 0, cv.width, 26);
+    g.fillStyle = "#fff"; g.font = "bold 12px system-ui"; g.textAlign = "center";
+    g.fillText("Router en 5 GHz + impresora solo 2,4 GHz: no se conectan (el mapa muestra solo la señal)", cv.width/2, 17);
+  }
 }
+
+// ==================== AJUSTE DEL CANVAS A LA PANTALLA ====================
+const wideMQ = matchMedia("(min-width: 900px) and (min-height: 600px)");
+function fit() {
+  const box = document.getElementById("cvw");
+  if (!wideMQ.matches) { cv.style.width = ""; cv.style.height = ""; return; }
+  cv.style.width = "0px"; cv.style.height = "0px";
+  const w = box.clientWidth, h = box.clientHeight;
+  if (!w || !h) return;
+  const sc = Math.min(w / cv.width, h / cv.height);
+  cv.style.width = Math.floor(cv.width * sc) + "px";
+  cv.style.height = Math.floor(cv.height * sc) + "px";
+}
+window.addEventListener("resize", fit);
 
 // ==================== INTERFAZ ====================
 let job = null;
 
 function upd() {
+  clearInterval(job); // evita que una animación vieja actualice un panel ya reemplazado
   const e = evalS(P.x, P.y, S);
   const o = document.getElementById("out");
   const cls = e.st=="ok" ? "b-ok" : e.st=="bad" ? "b-bad" : "b-mid";
-  
+
   const m = (n, v, mx, u) => `<div class="meter"><div class="n"><span>${n}</span><b>${v.toFixed(1)} ${u}</b></div><div class="bar"><i style="width:${Math.min(100, v/mx*100)}%"></i></div></div>`;
-  
+
   o.innerHTML = `
     <span class="badge ${cls}">${e.msg}</span>
-    <p style="margin:10px 0 6px; font-size:0.95rem">${e.why}</p>
+    <p style="margin:8px 0 4px; font-size:0.9rem">${e.why}</p>
     ${e.rssi===null ? "" : `
       <div class="stat">
         <span>Señal <b>${e.rssi.toFixed(0)} dBm</b></span>
@@ -187,35 +222,37 @@ function upd() {
       <div class="bar" style="margin-top:10px"><i id="pb" style="width:0"></i></div>
     </div>
   `;
-  
+
   document.getElementById("go").onclick = () => run(e);
   draw();
 }
 
-// ==================== ANIMACIÓN RÁPIDA ====================
+// ==================== ANIMACIÓN ====================
 function run(e) {
   clearInterval(job);
   const b = document.getElementById("pb"), t = document.getElementById("pt");
   let p = 0;
-  
-  // Si falla, se corta rápido (entre 30 y 50% de la barra).
-  // Si funciona, completa el 100% en 1.5 segundos aprox.
+
+  // Falla: se corta entre 30 y 50 %. Lento: tarda más. Bien: ~1,5 s.
   const stop = e.st == "bad" ? 30 + Math.random()*20 : 100;
-  const dur = 1.5; // Segundos fijos de animación para no aburrir al jurado
-  
-  t.textContent = e.st == "bad" ? "Enviando…" : "Enviando…";
+  const dur = e.st == "mid" ? 4 : 1.5;
+
+  t.textContent = "Enviando…";
   b.style.background = "";
-  
+
   job = setInterval(() => {
-    p += 100 / (dur * 20); 
-    
+    p += 100 / (dur * 20);
+
     if (p >= stop) {
-      clearInterval(job); 
+      clearInterval(job);
       p = stop;
-      
+
       if (e.st == "bad") {
         t.textContent = "✕ Conexión perdida: el trabajo no sale";
         b.style.background = "var(--bad)";
+      } else if (e.st == "mid") {
+        t.textContent = "✓ Impreso, pero lento";
+        b.style.background = "var(--wa)";
       } else {
         t.textContent = "✓ Impreso con éxito";
         b.style.background = "var(--ok)";
@@ -232,16 +269,15 @@ function pos(ev) {
   upd();
 }
 
-let dr = false;
 cv.addEventListener("pointerdown", (e) => { dr = true; cv.setPointerCapture(e.pointerId); pos(e); });
 cv.addEventListener("pointermove", (e) => { if (dr) pos(e); });
-cv.addEventListener("pointerup", () => { dr = false; });
+cv.addEventListener("pointerup", () => { dr = false; draw(); }); // redibuja en alta resolución al soltar
 
 // Controles
-[["rt","rt",1],["bd","band",2],["ps","ps",3]].forEach(a => {
+[["rt","rt"],["bd","band"],["ps","ps"]].forEach(a => {
   document.getElementById(a[0]).onchange = function() {
     const v = this.value;
-    S[a[1]] = a[0]=="rt" ? +v : a[0]=="bd" ? +v : v;
+    S[a[1]] = (a[0]=="rt" || a[0]=="bd") ? +v : v;
     upd();
   };
 });
@@ -296,18 +332,18 @@ function calc() {
   const sc = {}; let t = 0;
   C.forEach(c => sc[c.k] = 0);
   let any = false;
-  
+
   bx.querySelectorAll("input:checked").forEach(b => {
     any = true;
     const w = Q[+b.dataset.i][1];
     for (const k in w) sc[k] += w[k];
   });
-  
+
   const o = document.getElementById("dout");
   if (!any) { o.innerHTML = '<p class="note">Marcá al menos un síntoma.</p>'; return; }
-  
+
   C.forEach(c => t += sc[c.k]);
-  
+
   o.innerHTML = C
     .map(c => ({ c, s: sc[c.k] }))
     .filter(x => x.s > 0)
@@ -326,7 +362,9 @@ document.querySelectorAll(".tabs button").forEach(b => {
     document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
     document.getElementById("sim").classList.toggle("hide", b.dataset.t != "sim");
     document.getElementById("dia").classList.toggle("hide", b.dataset.t != "dia");
+    fit();
   };
 });
 
+fit();
 upd();
